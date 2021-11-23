@@ -4,8 +4,17 @@ This module simplifies the creation of a CSR1KV in AWS with with External Connec
 
 ![AWS Topology](aviatrix-demo-onprem-Topology-AWS.png)
 
-**NOTE**: This module utilizes the CSR1K BYOL offer in the AWS Marketplace.
-- Offer Link: https://aws.amazon.com/marketplace/pp/prodview-tinibseuanup2
+**NOTE**: This module utilizes two different CSR1K offer in the AWS Marketplace depending on whether price or performance is prioritized:
+- BYOL Offer Link (price): https://aws.amazon.com/marketplace/pp/prodview-tinibseuanup2
+- Security Package Offer Link (performance): https://aws.amazon.com/marketplace/pp/prodview-4mrybq6krrw3g
+
+# Version 2.0 New Features
+- Support for deploying into existing VPC/Subnet
+- Added support GRE and BGPoLAN tunnel protocol
+- Added HA support and automatic configuration of remote_ha
+- Added support for prioritizing price or performance (switch between BYOL AMI and Security Package)
+- Ability to mix BGPoLAN connection type with Public IPsec conns to simulate SD-WAN
+- Ability to pick primary/ha AZs
 
 # Instructions
 
@@ -33,30 +42,35 @@ module "demo-onprem-1" {
   source                                = "github.com/gleyfer/aviatrix-demo-onprem-aws"
   providers                             = { aws = aws.use1 }
   hostname                              = "avxOnprem-East1"
+  tunnel_proto				= "IPsec"
   network_cidr                          = "172.16.0.0/16"
-  public_sub                            = "172.16.0.0/24"
-  private_sub                           = "172.16.1.0/24"
+  public_subnets                        = ["172.16.0.0/24","172.16.1.0/24"]
+  private_subnets			= ["172.16.2.0/24","172.16.3.0/24"]
   advertised_prefixes                   = ["10.20.0.0/16","10.30.0.0/16"]
-  instance_type                         = "t2.medium"
+  instance_type                         = "t3.medium"
   public_conns                          = [ "Test-Transit:64525:1", "TestWest-Transit:64526:1"]
   private_conns                         = [ "Test-Transit:64525:1" ]
   csr_bgp_as_num                        = "64527"
   create_client                         = true
 }
 
+# Example of BGPoLAN connection with a Aviatrix sandwich
+# Existing subnet/id's are provided for the BGPoLAN/CSRs
+# public conns are defined to connect to another aviatrix transit
+# acting as the on-prem sd-wan
 module "demo-onprem-2" {
   source                                = "github.com/gleyfer/aviatrix-demo-onprem-aws"
   providers                             = { aws = aws.usw2 }
   hostname                              = "avxOnprem-West2"
+  tunnel_proto				= "LAN"
   network_cidr                          = "172.31.0.0/16"
-  public_sub                            = "172.31.0.0/24"
-  private_sub                           = "172.31.1.0/24"
+  public_subnet_ids                     = ["subnet-123abc","subnet-234def"]
+  bgpolan_subnet_ids                    = ["subnet-567ghi","subnet-890jkl"]
   advertised_prefixes                   = ["10.20.0.0/16","10.30.0.0/16"]
-  instance_type                         = "t2.medium"
-  public_conns                          = [ "Test-Transit:64525:1", "TestWest-Transit:64526:1"]
-  private_conns                         = [ "Test-Transit:64525:1" ]
+  instance_type                         = "t3.medium"
+  public_conns                          = [ "Test-Onprem:64433:1"]
+  private_conns                         = [ "Test-SDWAN-Transit:64525:1" ]
   csr_bgp_as_num                        = "64528"
-  create_client                         = true
 }
 ```
 
@@ -92,8 +106,14 @@ Explanation of module arguments:
 - **hostname:** The hostname which will be configured on the CSR and which will prefix all of the resources created.
 - **key_name:** If you have an existing SSH key in AWS which you would like to use for the CSR & test client login you can put the name here. CSR will automatically be provisioned an admin user with a password of: Password123!
 - **network_cidr:** The CIDR block to use for the VPC which the CSR will reside in.
-- **public_sub:** The public subnet for the CSR public facing interface.
-- **private_sub:** The private subnet for the CSR private facing interface. If enabled, the test client will be created in this subnet.
+- **az1:** Primary CSR/Aviatrix gateway availability zone (default a)
+- **az2:** Secondary CSR/Aviatrix gateway availability zone (default b)
+- **tunnel_proto:** Which tunnel protocol to use for creating Aviatrix tunnels to CSR. Valid values: "IPsec", "GRE", "LAN"
+- **public_subnets:** The list of public subnets for the CSR public facing interface. One value here will create a CSR without HA, putting two values will create HA CSRs.
+- **private_subnets:** The list of private subnets for the CSR private facing interface. One value here will create a CSR without HA, putting two values will create HA CSRs.
+- **public_subnet_ids:** The list of existing public subnet ids for the CSR public facing interface. One value here will create a CSR without HA, putting two values will create HA CSRs.
+- **private_subnet_ids:** The list of existing private subnet ids for the CSR private facing interface. One value here will create a CSR without HA, putting two values will create HA CSRs.
+- **bgpolan_subnet_ids:** Existing BGPoLAN subnet ids to create CSR LAN interface inside of.
 - **advertised_prefixes:** Custom list of prefixes to advertise to Aviatrix Transit. Will create static routes to Null0 for these prefixes on the CSR and redistribute static to BGP.
 - **instance_type:** The instance type to launch the CSR with. Default is t2.medium.
 - **public_conns:** List of public external connection definitions (please see above example for format). Tunnels will be created to primary and hagw automatically.
