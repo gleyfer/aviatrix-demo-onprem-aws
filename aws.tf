@@ -37,7 +37,7 @@ resource "aws_subnet" "csr_aws_public_subnet" {
 }
 
 resource "aws_subnet" "csr_aws_private_subnet" {
-  count = var.create_client == false || var.private_subnet_ids != null ? 0 : length(var.private_subnets)
+  count = var.private_subnet_ids != null ? 0 : length(var.private_subnets)
   vpc_id                  = aws_vpc.csr_aws_vpc[0].id
   cidr_block              = var.private_subnets[count.index]
   map_public_ip_on_launch = false
