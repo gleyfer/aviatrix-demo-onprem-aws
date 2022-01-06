@@ -89,7 +89,7 @@ resource "aws_route" "csr_private_default" {
   count = var.private_subnet_ids != null ? 0 : var.private_subnets != null ? length(var.private_subnets) : 0
   route_table_id         = aws_route_table.csr_private_rtb[count.index].id
   destination_cidr_block = "0.0.0.0/0"
-  network_interface_id   = aws_network_interface.CSR_Private_ENI[0].id
+  network_interface_id   = aws_network_interface.CSR_Private_ENI[count.index].id
   depends_on             = [aws_route_table.csr_private_rtb, aws_instance.CSROnprem, aws_network_interface.CSR_Private_ENI]
 }
 
